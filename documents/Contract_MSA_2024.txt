@@ -1,0 +1,52 @@
+MASTER SERVICE AGREEMENT
+
+Between: Acme Consulting LLC ("Vendor") and TechCorp Industries Inc. ("Client")
+Effective Date: January 15, 2024
+Agreement ID: MSA-2024-0042
+
+SECTION 1: SCOPE OF SERVICES
+The Vendor shall provide strategic consulting services including but not limited to:
+technology assessment, process optimization, and digital transformation advisory.
+
+SECTION 2: TERM
+This Agreement shall commence on the Effective Date and continue for a period of
+twelve (12) months, automatically renewing for successive one-year terms unless
+terminated by either party with sixty (60) days written notice.
+
+SECTION 3: PAYMENT TERMS
+3.1 All invoices shall be payable within Net 30 days of receipt.
+3.2 Late payments shall incur interest at 1.5% per month.
+3.3 The Client shall pay all undisputed invoices in full.
+
+SECTION 4: FEES AND CAPS
+4.1 The Vendor's standard hourly rate is $100 per hour.
+4.2 Total fees shall not exceed $45,000 per quarter (the "Quarterly Fee Cap").
+4.3 Any work exceeding the Quarterly Fee Cap requires prior written approval.
+
+SECTION 5: TERMINATION
+5.1 Either party may terminate this Agreement with sixty (60) days written notice.
+5.2 Upon termination, the Client shall pay for all services rendered through the
+    effective date of termination.
+5.3 Sections 6, 7, and 8 shall survive termination.
+
+SECTION 6: CONFIDENTIALITY
+Both parties agree to maintain the confidentiality of all proprietary information
+disclosed during the course of this Agreement for a period of three (3) years.
+
+SECTION 7: LIABILITY
+7.1 Liability is capped at two times (2x) the Quarterly Fee Cap ($90,000).
+7.2 Neither party shall be liable for indirect, incidental, or consequential damages.
+
+SECTION 8: GOVERNING LAW
+This Agreement shall be governed by the laws of the State of Delaware.
+
+SECTION 9: DISPUTE RESOLUTION
+Any disputes shall be resolved through binding arbitration under the rules of the
+American Arbitration Association in Wilmington, Delaware.
+
+Signed:
+___________________________
+Acme Consulting LLC
+
+___________________________
+TechCorp Industries Inc.

@@ -1,0 +1,36 @@
+INVOICE
+
+Invoice Number: INV-2024-Q3-001
+Date: October 5, 2024
+Due Date: November 19, 2024
+
+From: Acme Consulting LLC
+To: TechCorp Industries Inc.
+Reference: MSA-2024-0042
+
+BILLING PERIOD: Q3 2024 (July 1 - September 30, 2024)
+
+SERVICES RENDERED:
+|----------------------------------------------------|
+| Description              | Hours | Rate    | Total  |
+|----------------------------------------------------|
+| Strategic Consulting     | 250   | $100/hr | $25,000|
+| Process Optimization     | 150   | $100/hr | $15,000|
+| Digital Transformation   | 100   | $100/hr | $10,000|
+|----------------------------------------------------|
+| SUBTOTAL                 | 500   |         | $50,000|
+|----------------------------------------------------|
+
+TOTAL AMOUNT DUE: $50,000
+
+PAYMENT TERMS: Net 45 days
+
+NOTES:
+- Payment should reference Invoice Number INV-2024-Q3-001
+- Wire transfer details provided separately
+- Hours tracked in Acme's project management system (available on request)
+
+Thank you for your continued partnership.
+
+Acme Consulting LLC
+Accounts Receivable Department

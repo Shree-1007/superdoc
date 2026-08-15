@@ -1,0 +1,35 @@
+# Vendor Contract Compliance Playbook
+# ─────────────────────────────────────
+# Add new rules here as YAML entries — no code changes needed.
+# Assessment: "Configuration over code — a new rule should be a data change, not a rewrite."
+
+domain: vendor_contracts
+version: "1.0"
+description: "Rules for checking vendor contracts, invoices, and amendments"
+
+rules:
+  - name: "Quarterly Fee Cap"
+    type: monetary_cap
+    description: "Total fees per quarter must not exceed the MSA cap"
+    cap: 45000
+    field_pattern: '\$[\d,]+'
+    severity: high
+
+  - name: "Payment Terms Compliance"
+    type: term_match
+    description: "Payment terms must match the MSA (Net 30 days)"
+    pattern: 'Net\s+(\d+)\s+days?'
+    expected_value: "30"
+    severity: medium
+
+  - name: "Termination Clause Required"
+    type: required_clause
+    description: "Every contract must include a termination clause"
+    pattern: 'terminat'
+    severity: high
+
+  - name: "Liability Cap Required"
+    type: required_clause
+    description: "Every contract must include a liability cap"
+    pattern: 'liability.*(cap|limit)'
+    severity: medium

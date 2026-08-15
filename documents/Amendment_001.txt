@@ -1,0 +1,41 @@
+AMENDMENT TO MASTER SERVICE AGREEMENT
+
+Amendment Number: AMD-2024-001
+Original Agreement: MSA-2024-0042
+Effective Date: July 1, 2024
+
+Between: Acme Consulting LLC ("Vendor") and TechCorp Industries Inc. ("Client")
+
+WHEREAS, the parties entered into the Master Service Agreement MSA-2024-0042
+dated January 15, 2024; and
+
+WHEREAS, the parties wish to amend certain terms of the Agreement;
+
+NOW, THEREFORE, the parties agree as follows:
+
+1. AMENDMENT TO SECTION 4.2 (QUARTERLY FEE CAP)
+   Section 4.2 of the Agreement is hereby amended to read:
+   "Total fees shall not exceed $55,000 per quarter."
+   
+   This replaces the original cap of $45,000 per quarter.
+
+2. AMENDMENT TO SECTION 2 (TERM)
+   The initial term is extended by six (6) additional months, through
+   July 14, 2025.
+
+3. NO OTHER CHANGES
+   All other terms and conditions of the original Agreement shall remain
+   in full force and effect.
+
+4. ENTIRE AMENDMENT
+   This Amendment, together with the original Agreement, constitutes the
+   entire agreement between the parties regarding the subject matter hereof.
+
+IN WITNESS WHEREOF, the parties have executed this Amendment as of the
+Effective Date set forth above.
+
+___________________________
+Acme Consulting LLC
+
+___________________________
+TechCorp Industries Inc.

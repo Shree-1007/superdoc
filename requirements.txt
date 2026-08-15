@@ -1,0 +1,34 @@
+# Production-ready requirements for SuperDocs Task 1
+# Core
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Agent Orchestration
+langgraph
+langchain
+langchain-core
+langgraph-checkpoint-sqlite
+
+# LLM
+google-generativeai
+
+# Document Parsing
+pypdf
+python-docx
+
+# Database
+aiosqlite
+
+# File Watching
+watchdog
+
+# Testing
+pytest
+pytest-asyncio
+httpx
+
+# Utilities
+python-multipart
+pyyaml

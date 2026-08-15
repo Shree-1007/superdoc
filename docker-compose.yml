@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./documents:/app/documents
+      - ./rules:/app/rules
+      - ./checkpoints:/app/checkpoints
+    environment:
+      - MOCK_LLM=true
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+
+  frontend:
+    build: ./superdocs-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
