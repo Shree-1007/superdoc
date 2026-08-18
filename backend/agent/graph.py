@@ -74,9 +74,7 @@ def build_graph(checkpointer=None):
 
     # Compile with checkpointer
     if checkpointer is None:
-        conn = sqlite3.connect(settings.checkpoint_db, check_same_thread=False)
-        SqliteSaver.setup(conn)
-        checkpointer = SqliteSaver(conn)
+        raise ValueError("A checkpointer must be provided")
 
     compiled = workflow.compile(
         checkpointer=checkpointer,

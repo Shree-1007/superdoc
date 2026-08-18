@@ -6,6 +6,7 @@ end to end without a human clicking through the interface.
 import logging
 import shutil
 import os
+import asyncio
 from typing import List
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -21,6 +22,10 @@ router = APIRouter(prefix="/api")
 
 # The compiled graph is injected from main.py at startup
 _graph = None
+
+# Global flag to demonstrate the "Kill Thing" without crashing the entire Python server
+INTERRUPT_FLAGS = {}
+RUNNING_TASKS = {}
 
 
 def set_graph(graph):
@@ -66,9 +71,13 @@ async def start_run(req: StartRunRequest):
         "changed_sections": [],
     }
 
+    INTERRUPT_FLAGS[req.thread_id] = False
+    RUNNING_TASKS[req.thread_id] = asyncio.current_task()
     try:
         async for _event in graph.astream(initial_state, config):
-            pass  # Stream through steps until interrupted or complete
+            if INTERRUPT_FLAGS.get(req.thread_id):
+                logger.warning(f"Thread {req.thread_id} was killed by the UI!")
+                raise RuntimeError("Simulated Crash via UI Kill Button")
 
         state = await graph.aget_state(config)
         vals = state.values
@@ -91,10 +100,60 @@ async def start_run(req: StartRunRequest):
             error=vals.get("error"),
         )
 
+    except asyncio.CancelledError:
+        logger.warning(f"Thread {req.thread_id} was killed via asyncio.CancelledError!")
+        raise HTTPException(status_code=500, detail="Pipeline error: RuntimeError: Simulated Crash via UI Kill Button")
     except Exception as e:
         logger.error(f"start_run failed for {req.thread_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Pipeline error: {type(e).__name__}: {e}")
+    finally:
+        RUNNING_TASKS.pop(req.thread_id, None)
 
+# ─── Kill / Resume (The "Kill Thing") ────────────────────
+@router.post("/run/kill/{thread_id}")
+async def kill_run(thread_id: str):
+    """Simulate a server crash mid-run by throwing an error."""
+    INTERRUPT_FLAGS[thread_id] = True
+    task = RUNNING_TASKS.get(thread_id)
+    if task:
+        task.cancel()
+    return {"status": "killed"}
+
+@router.post("/run/resume/{thread_id}", response_model=RunStateResponse)
+async def resume_run(thread_id: str):
+    """Resume a crashed run from the last checkpoint."""
+    graph = _get_graph()
+    config = {"configurable": {"thread_id": thread_id}}
+    INTERRUPT_FLAGS[thread_id] = False
+    
+    try:
+        # Resume the graph by passing None for input state
+        async for _event in graph.astream(None, config):
+            if INTERRUPT_FLAGS.get(thread_id):
+                raise RuntimeError("Simulated Crash via UI Kill Button")
+
+        state = await graph.aget_state(config)
+        vals = state.values
+
+        status = "paused_for_review"
+        if vals.get("human_review_status") == "no_findings" or vals.get("deliverable"):
+            status = "completed"
+        if vals.get("error"):
+            status = "error"
+
+        return RunStateResponse(
+            thread_id=thread_id,
+            status=status,
+            current_stage=vals.get("current_stage", ""),
+            findings=vals.get("findings", []),
+            conflicts=vals.get("conflicts", []),
+            injection_flags=vals.get("injection_flags", []),
+            deliverable=vals.get("deliverable"),
+            error=vals.get("error"),
+        )
+    except Exception as e:
+        logger.error(f"resume_run failed for {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Pipeline error: {type(e).__name__}: {e}")
 
 # ─── Get State ───────────────────────────────────────────
 @router.get("/run/state/{thread_id}", response_model=RunStateResponse)
@@ -149,9 +208,12 @@ async def submit_review(thread_id: str, req: ReviewSubmission):
     )
 
     # Resume the graph
+    RUNNING_TASKS[thread_id] = asyncio.current_task()
     try:
         async for _event in graph.astream(None, config):
-            pass
+            if INTERRUPT_FLAGS.get(thread_id):
+                logger.warning(f"Thread {thread_id} was killed by the UI during submit_review!")
+                raise RuntimeError("Simulated Crash via UI Kill Button")
 
         final = await graph.aget_state(config)
         vals = final.values
@@ -167,9 +229,14 @@ async def submit_review(thread_id: str, req: ReviewSubmission):
             error=vals.get("error"),
         )
 
+    except asyncio.CancelledError:
+        logger.warning(f"Thread {thread_id} was killed via asyncio.CancelledError!")
+        raise HTTPException(status_code=500, detail="Pipeline error: RuntimeError: Simulated Crash via UI Kill Button")
     except Exception as e:
         logger.error(f"submit_review failed for {thread_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Resume error: {type(e).__name__}: {e}")
+    finally:
+        RUNNING_TASKS.pop(thread_id, None)
 
 
 # ─── Cost Report (Requirement 10) ────────────────────────

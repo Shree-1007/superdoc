@@ -159,6 +159,8 @@ export default function App() {
         body: JSON.stringify({ thread_id: threadId })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Start failed');
+
       setConflicts(data.conflicts || []);
       setInjectionFlags(data.injection_flags || []);
 
@@ -181,6 +183,47 @@ export default function App() {
     }
   };
 
+  const killAgentRun = async () => {
+    try {
+      await fetch(`http://localhost:8000/api/run/kill/${threadId}`, { method: 'POST' });
+    } catch (err) {
+      console.error("Failed to send kill signal:", err);
+    }
+  };
+
+  const resumeAgentRun = async () => {
+    setStatus('running');
+    setError(null);
+    try {
+      const res = await fetch(`http://localhost:8000/api/run/resume/${threadId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Resume failed');
+      
+      setConflicts(data.conflicts || []);
+      setInjectionFlags(data.injection_flags || []);
+
+      if (data.status === 'paused_for_review') {
+        setFindings(data.findings || []);
+        setStatus('review');
+      } else if (data.status === 'completed') {
+        setDeliverable(data.deliverable);
+        setFindings(data.findings || []);
+        setStatus('completed');
+        fetchCostReport();
+      } else if (data.status === 'error') {
+        setError(data.error);
+        setStatus('idle');
+      }
+    } catch (err) {
+      console.error("Failed to resume run:", err);
+      setError(err.message);
+      setStatus('idle');
+    }
+  };
+
   const handleDecision = (id, decision) => {
     setFindings(findings.map(f =>
       f.id === id ? { ...f, status: decision } : f
@@ -196,12 +239,14 @@ export default function App() {
         body: JSON.stringify({ findings, conflicts })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Submit review failed');
       setDeliverable(data.deliverable);
       setStatus('completed');
       fetchCostReport();
     } catch (err) {
       console.error("Failed to submit review:", err);
       setError(err.message);
+      setStatus('idle');
     }
   };
 
@@ -222,6 +267,19 @@ export default function App() {
     setCostReport(null);
     setError(null);
     setUploadedFiles([]);
+  };
+
+  const downloadReport = () => {
+    if (!deliverable) return;
+    const blob = new Blob([deliverable], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SuperDocs_Report_${threadId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -265,21 +323,6 @@ export default function App() {
           <div className="glass-elevated" style={{ borderRadius: '1rem', padding: '1.5rem' }}>
             <PipelineVisualization appStatus={status} />
 
-            {/* Thread ID Input */}
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', display: 'block', marginBottom: '0.5rem' }}>
-                Thread ID
-              </label>
-              <input
-                type="text"
-                value={threadId}
-                onChange={(e) => setThreadId(e.target.value)}
-                className="input-dark"
-                style={{ width: '100%' }}
-                disabled={status !== 'idle'}
-              />
-            </div>
-
             {/* Start Button */}
             <button
               onClick={startAgentRun}
@@ -303,6 +346,33 @@ export default function App() {
                 'In Progress'
               )}
             </button>
+
+            {/* Kill & Resume Buttons */}
+            {status === 'running' && (
+              <button
+                onClick={killAgentRun}
+                style={{
+                  width: '100%', marginTop: '0.75rem', padding: '0.6rem',
+                  background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: '#f87171', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.target.style.background = 'rgba(239, 68, 68, 0.2)'}
+                onMouseLeave={e => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
+              >
+                ✕ Simulate Server Crash
+              </button>
+            )}
+
+            {status === 'idle' && error && error.includes('Simulated Crash') && (
+              <button
+                onClick={resumeAgentRun}
+                className="btn-confirm"
+                style={{ width: '100%', marginTop: '0.75rem', padding: '0.6rem', fontSize: '0.8rem' }}
+              >
+                ↻ Resume from Checkpoint
+              </button>
+            )}
 
             {/* Status */}
             <div style={{ marginTop: '1rem', textAlign: 'center' }}>
@@ -538,14 +608,41 @@ export default function App() {
 
                 {/* Deliverable */}
                 <div className="glass" style={{ borderRadius: '1rem', padding: '1.5rem', marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <rect x="1" y="1" width="10" height="10" rx="2" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" />
-                      <path d="M3.5 4H8.5M3.5 6H7.5M3.5 8H5.5" stroke="rgba(255,255,255,0.25)" strokeWidth="0.6" strokeLinecap="round" />
-                    </svg>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>
-                      Generated Report
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <rect x="1" y="1" width="10" height="10" rx="2" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" />
+                        <path d="M3.5 4H8.5M3.5 6H7.5M3.5 8H5.5" stroke="rgba(255,255,255,0.25)" strokeWidth="0.6" strokeLinecap="round" />
+                      </svg>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>
+                        Generated Report
+                      </span>
+                    </div>
+                    <button
+                      onClick={downloadReport}
+                      style={{
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                        color: '#a5b4fc',
+                        padding: '0.3rem 0.6rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={e => e.target.style.background = 'rgba(99, 102, 241, 0.2)'}
+                      onMouseLeave={e => e.target.style.background = 'rgba(99, 102, 241, 0.1)'}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M5 1V7M5 7L2.5 4.5M5 7L7.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M1 9H9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                      </svg>
+                      Download
+                    </button>
                   </div>
                   <div className="deliverable-content">
                     {deliverable}

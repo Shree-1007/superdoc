@@ -1,6 +1,6 @@
 """Gemini LLM service — wraps the Google Generative AI SDK.
 
-Uses gemini-2.0-flash (free tier) for fast, cost-effective extraction.
+Uses gemini-3.6-flash (free tier) for fast, cost-effective extraction.
 Falls back to mock mode gracefully if the API key is missing or calls fail.
 """
 import json
@@ -59,7 +59,7 @@ async def call_gemini(system_prompt: str, user_prompt: str) -> Optional[str]:
     try:
         # Gemini uses a chat-like interface — combine system + user as prompt
         full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
-        response = model.generate_content(full_prompt)
+        response = await model.generate_content_async(full_prompt)
 
         if response and response.text:
             return response.text

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Optional LLM keys
     openai_api_key: str = ""
     google_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.6-flash"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

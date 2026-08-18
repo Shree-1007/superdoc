@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 from backend.agent.graph import build_graph
 from backend.api.routes import router, set_graph
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 # Configure logging
 logging.basicConfig(
@@ -23,12 +24,16 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     # Startup
     logger.info("Building agent graph…")
-    graph = build_graph()
-    set_graph(graph)
-    logger.info("Agent graph compiled and ready.")
-    logger.info(f"MOCK_LLM={settings.mock_llm}  |  Rules dir={settings.rules_dir}  |  Watched dir={settings.watched_dir}")
+    async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db) as checkpointer:
+        # Monkeypatch to fix LangGraph/aiosqlite version bug where is_alive doesn't exist
+        checkpointer.conn.is_alive = lambda: True
+        await checkpointer.setup()
+        graph = build_graph(checkpointer=checkpointer)
+        set_graph(graph)
+        logger.info("Agent graph compiled and ready.")
+        logger.info(f"MOCK_LLM={settings.mock_llm}  |  Rules dir={settings.rules_dir}  |  Watched dir={settings.watched_dir}")
 
-    yield
+        yield
 
     # Shutdown
     logger.info("Shutting down.")

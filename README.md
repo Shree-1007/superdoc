@@ -7,22 +7,26 @@
 ## Quick Start (Clone to Working in Minutes)
 
 ```bash
-# 1. Clone and enter
+# 1. Clone the repository
 git clone <repo-url> && cd doctask-shreekant
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Copy environment config
+# 3. Configure your environment variables
+# Note: The system requires a valid Gemini API key for production mode
 cp .env.example .env
+# Edit .env and set GEMINI_API_KEY=your_key_here
 
-# 4. Start the backend
-uvicorn backend.main:app --reload
+# 4. Start the backend server
+python -m uvicorn backend.main:app --reload
 
-# 5. Start the frontend (in another terminal)
-cd superdocs-frontend && npm install && npm run dev
+# 5. Start the React frontend (in a new terminal)
+cd superdocs-frontend 
+npm install 
+npm run dev
 
-# 6. Open http://localhost:5173
+# 6. Open your browser to http://localhost:5173
 ```
 
 ## Architecture
@@ -46,7 +50,7 @@ cd superdocs-frontend && npm install && npm run dev
 │  │Deliverble│   │ Gate (HITL)    │   │   (YAML config)        ││
 │  └──────────┘   └────────────────┘   └────────────────────────┘│
 │                                                                  │
-│  LangGraph Orchestration │ MemorySaver Checkpointer             │
+│  LangGraph Orchestration │ AsyncSqliteSaver Checkpointer         │
 └─────────────────────────────────────────────────────────────────┘
          │
     ┌────▼─────┐    ┌──────────────┐
@@ -55,12 +59,24 @@ cd superdocs-frontend && npm install && npm run dev
     └──────────┘    └──────────────┘
 ```
 
+## How to use the "Simulate Server Crash" Feature
+
+One of the standout features of this system is its extreme resilience to mid-execution failures, utilizing **LangGraph's state persistence** and **Python's `asyncio` task cancellation**.
+
+To test this feature:
+1. Start the backend and frontend servers.
+2. Open the frontend and upload some documents.
+3. Click **"Start Analysis"**.
+4. **Immediately** click the red **"✕ Simulate Server Crash"** button while the pipeline is spinning (e.g., during the "Extract Facts" or "Detect Conflicts" stages).
+5. The backend process will be instantly cancelled, terminating the active Gemini API call (`gemini-3.6-flash`), and the UI will drop into an Error state.
+6. Click **"↻ Resume from Checkpoint"**. The backend will query the SQLite database, reconstitute the exact state graph, and pick up right where it left off, successfully navigating to the Human Review stage without data loss.
+
 ## The 10 Required Behaviors
 
 | # | Requirement | Status | How |
 |---|---|---|---|
 | 1 | Visible steps with branching | ✅ | 7 LangGraph nodes, conditional edges (retry/skip/escalate) |
-| 2 | Survives being stopped | ✅ | MemorySaver checkpointer, tested in `test_resume.py` |
+| 2 | Survives being stopped | ✅ | AsyncSqliteSaver checkpointer and `asyncio` task cancellation |
 | 3 | Human holds the gate | ✅ | `interrupt_before=["human_review_gate"]`, item-by-item review |
 | 4 | Machine can drive it | ✅ | Full REST API: `/api/run/start`, `/api/run/submit_review/{id}` |
 | 5 | Never bluffs | ✅ | Source tracing on every claim, honesty prompts, empty-findings allowed |
@@ -70,12 +86,6 @@ cd superdocs-frontend && npm install && npm run dev
 | 9 | Concurrent runs | ✅ | Thread-isolated state, tested in `test_concurrent.py` |
 | 10 | Cost tracking | ✅ | Per-stage `StageLog` with timing, `/api/run/cost/{id}` endpoint |
 
-## Run Tests (No API Key Needed)
-
-```bash
-pytest tests/ -v
-```
-
 ## API Endpoints
 
 | Method | Path | Description |
@@ -84,8 +94,9 @@ pytest tests/ -v
 | `POST` | `/api/run/start` | Start a pipeline run |
 | `GET` | `/api/run/state/{thread_id}` | Get current run state |
 | `POST` | `/api/run/submit_review/{thread_id}` | Submit human review decisions |
+| `POST` | `/api/run/kill/{thread_id}` | Simulate server crash / instant cancel |
+| `POST` | `/api/run/resume/{thread_id}` | Resume from checkpoint |
 | `GET` | `/api/run/cost/{thread_id}` | Get cost/timing report |
-| `POST` | `/api/documents/upload` | Upload documents |
 
 ## Configuration Over Code
 
@@ -100,49 +111,15 @@ Compliance rules live in `rules/*.yaml`. Adding a new rule is a YAML edit:
 
 No code changes needed. Restart picks up new rules automatically.
 
-## Design Decisions
+## Engineering Design Decisions
 
-1. **SqliteSaver Checkpointer**: LangGraph's `SqliteSaver` is used for state persistence. If the process is killed midway, it can seamlessly resume from the last known checkpoint using the same thread ID.
-2. **Graceful LLM Fallback (MOCK_LLM)**: By setting `MOCK_LLM=false` and providing a Gemini API key, the system does real extraction via Gemini Flash. If the API fails or `MOCK_LLM=true` is set (e.g. for deterministic unit testing), it seamlessly falls back to local regex extraction.
-3. **Injection detection before ingestion**: The `sanitize_input` node runs first, flags patterns, but never blocks processing — injections are data, not commands.
-4. **Branching on check_rules**: Retry up to 3x on failure, skip review if no findings found, escalate to human if retries exhausted.
+1. **AsyncSqliteSaver Checkpointer**: LangGraph's checkpointer is used for state persistence. If the process is killed midway, it can seamlessly resume from the last known checkpoint using the same thread ID.
+2. **Asynchronous LLM API Calls**: Upgraded to use `gemini-3.6-flash` via `await model.generate_content_async()`. By using purely async endpoints, the FastAPI event loop remains unblocked, allowing instant interception of the `/kill` command even when waiting on Google's servers.
+3. **Task Cancellation**: Implemented `asyncio.Task.cancel()` to provide a true, immediate server crash simulation rather than just setting a boolean flag between graph states.
+4. **Graceful LLM Fallback (MOCK_LLM)**: By setting `MOCK_LLM=false` and providing a Gemini API key, the system does real extraction. If the API fails or `MOCK_LLM=true` is set, it seamlessly falls back to local regex extraction.
+5. **Injection detection before ingestion**: The `sanitize_input` node runs first, flags patterns, but never blocks processing — injections are data, not commands.
 
-## Known Limitations (Honest)
+## Known Limitations
 
 - **Single-process Checkpointing limits**: While SqliteSaver is great for this scale, horizontally scaling this would require switching to PostgresCheckpointer (available in LangGraph).
-- **No watched-folder daemon**: The `documents/` folder is read on-demand during pipeline execution, not continuously monitored via a file-system watcher daemon (like watchdog).
-
-## File Structure
-
-```
-doctask-shreekant/
-├── backend/
-│   ├── main.py              # FastAPI app entry point
-│   ├── config.py             # pydantic-settings (.env)
-│   ├── models.py             # API request/response schemas
-│   ├── agent/
-│   │   ├── state.py          # AgentState TypedDict
-│   │   ├── nodes.py          # All graph node functions
-│   │   ├── graph.py          # Graph construction
-│   │   └── prompts.py        # System prompts (honesty, injection defense)
-│   ├── api/
-│   │   └── routes.py         # All REST endpoints
-│   └── services/
-│       ├── document_parser.py # PDF/DOCX/TXT parsing
-│       └── rule_engine.py    # YAML-based compliance rules
-├── rules/
-│   └── contract_playbook.yaml # Compliance rules (config, not code)
-├── documents/                 # Upload/watched folder
-├── tests/
-│   ├── test_resume.py         # Kill & resume
-│   ├── test_concurrent.py     # Concurrent runs
-│   ├── test_injection.py      # Prompt injection defense
-│   ├── test_human_gate.py     # Item-by-item review
-│   └── test_cost_tracking.py  # Per-stage timing
-├── superdocs-frontend/        # React + Vite + Tailwind
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
+- **No watched-folder daemon**: The `documents/` folder is read on-demand during pipeline execution, not continuously monitored via a file-system watcher daemon.
