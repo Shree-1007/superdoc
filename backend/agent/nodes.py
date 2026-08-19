@@ -9,6 +9,7 @@ import re
 import time
 import uuid
 import logging
+import asyncio
 from typing import List
 
 from backend.agent.state import AgentState, Finding, ExtractedFact, Conflict, StageLog
@@ -164,19 +165,24 @@ async def extract_facts(state: AgentState) -> dict:
     documents = state.get("documents", [])
     facts: List[ExtractedFact] = []
 
-    for doc in documents:
-        if not settings.mock_llm:
-            # REAL MODE: Use Gemini
-            llm_facts = await _extract_facts_with_gemini(doc)
-            if llm_facts:
-                facts.extend(llm_facts)
-                continue
-            # Fall back to regex if Gemini fails
-            logger.warning(f"[{thread_id}] Gemini extraction failed for {doc.get('filename')}, falling back to regex")
-
-        # MOCK MODE or fallback: Use regex
-        doc_facts = _extract_facts_from_doc_regex(doc)
-        facts.extend(doc_facts)
+    if not settings.mock_llm:
+        # REAL MODE: Use Gemini concurrently
+        tasks = [_extract_facts_with_gemini(doc) for doc in documents]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for doc, result in zip(documents, results):
+            if isinstance(result, Exception):
+                logger.error(f"[{thread_id}] Gemini extraction failed for {doc.get('filename')}: {result}, falling back to regex")
+                facts.extend(_extract_facts_from_doc_regex(doc))
+            elif result:
+                facts.extend(result)
+            else:
+                logger.warning(f"[{thread_id}] Gemini extraction returned empty for {doc.get('filename')}, falling back to regex")
+                facts.extend(_extract_facts_from_doc_regex(doc))
+    else:
+        # MOCK MODE: Use regex
+        for doc in documents:
+            facts.extend(_extract_facts_from_doc_regex(doc))
 
     log = _log_stage("extract_facts", started, "success",
                      f"Extracted {len(facts)} facts from {len(documents)} documents (mode={'gemini' if not settings.mock_llm else 'mock'})")
